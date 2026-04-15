@@ -1,0 +1,10 @@
+Supplier,Location,Material / Part,Part ID,Seat Type,Description,PO Qty,Committed Date,Commited Shift,Status,OTIF %
+Supplier A1,Poland,Blue Leather Upholstery,P-301,Blue Seat,Alcantara,1,Apr-20,Shift 2,On Track,95%
+Supplier A2,Philippines,Blue Leather Upholstery,P-302,Blue Seat,Alcantara,1,Apr-20,Shift 2,On Track,91%
+Supplier A3,Czech Republic,Blue Leather Upholstery,P-303,Blue Seat,Alcantara,1,Apr-20,Shift 2,On Track,94%
+Supplier A4,Germany,Red Leather Upholstery,P-304,Red Seat,Polyester,1,Apr-20,Shift 2,On Track,96%
+Supplier A5,Italy,Red Leather Upholstery,P-305,Red Seat,Polyester,1,Apr-20,Shift 2,On Track,93%
+Supplier A6,Hungary,Red Leather Upholstery,P-306,Red Seat,Polyester,1,Apr-20,Shift 2,On Track,89%
+Supplier A7,Turkey,White Leather Upholstery,P-307,White Seat,Faux Leather,1,Apr-20,Shift 2,On Track,92%
+Supplier A8,Spain,White Leather Upholstery,P-308,White Seat,Faux Leather,1,Apr-20,Shift 2,On Track,95%
+Supplier A9,Vietnam,White Leather Upholstery,P-309,White Seat,Faux Leather,1,Apr-20,Shift 2,On Track,94%

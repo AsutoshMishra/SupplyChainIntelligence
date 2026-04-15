@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Supply Chain Intelligence</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+      crossorigin=""
+    />
+  </head>
+  <body>
+    <div class="app cfi-app">
+      <div class="cfi-app-bar">
+        <div class="cfi-app-bar__brand">
+          <img
+            class="cfi-logo"
+            src="Factory.png"
+            width="48"
+            height="48"
+            alt="Mini Factory"
+            decoding="async"
+          />
+          <div class="cfi-app-bar__titles">
+            <h1 class="cfi-app-bar__title">Supply Chain Intelligence</h1>
+            <p class="cfi-app-bar__subtitle">Mini Factory - Tier 1 Seat Manufacturing</p>
+          </div>
+        </div>
+        <div class="cfi-app-bar__actions">
+          <button type="button" class="cfi-reset-btn" id="btn-reset-scenarios" aria-label="Reset scenarios" title="Reset scenarios">
+            Reset
+          </button>
+          <button
+            type="button"
+            class="cfi-account-btn cfi-alert-btn"
+            id="btn-alerts-panel"
+            aria-label="Alerts"
+            title="Alerts"
+            aria-expanded="false"
+            aria-controls="alerts-popover"
+          >
+            <svg
+              class="cfi-account-btn__icon"
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M15 17h5l-1.4-1.4a2 2 0 0 1-.6-1.4V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" />
+              <path d="M10 17a2 2 0 0 0 4 0" />
+            </svg>
+            <span class="cfi-alert-btn__count" id="alerts-unread-count" hidden>0</span>
+          </button>
+          <button type="button" class="cfi-account-btn" aria-label="Account" title="Account">
+            <svg
+              class="cfi-account-btn__icon"
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </button>
+          <section class="alerts-popover" id="alerts-popover" hidden aria-label="Alerts panel">
+            <header class="alerts-popover__head">
+              <h3>Alerts</h3>
+              <span class="alerts-popover__count" id="alerts-total-count">0</span>
+            </header>
+            <div class="alerts-popover__list" id="alerts-popover-list">
+              <p class="alerts-popover__empty">No disruption events yet.</p>
+            </div>
+            <div class="alerts-popover__actions">
+              <button type="button" class="btn-refresh alerts-popover__btn" id="btn-alerts-clear">
+                Clear
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+      <div class="app-tabs-wrap">
+        <div class="app-tabs" role="tablist" aria-label="Application modules">
+          <button
+            type="button"
+            class="app-tab app-tab--active"
+            role="tab"
+            id="tab-scc"
+            aria-selected="true"
+            aria-controls="panel-scc"
+          >
+            Supply Chain Control Tower
+          </button>
+          <button
+            type="button"
+            class="app-tab"
+            role="tab"
+            id="tab-production"
+            aria-selected="false"
+            aria-controls="panel-production"
+            tabindex="-1"
+          >
+            Production Planning
+          </button>
+        </div>
+        <div class="app-tab-panel app-tab-panel--active" id="panel-scc" role="tabpanel" aria-labelledby="tab-scc">
+          <main class="grid">
+        <section class="card card--table card--commitments" aria-labelledby="commitments-title">
+          <div class="card__head card__head--row">
+            <div>
+              <h2 id="commitments-title">Supplier Commitments</h2>
+              <p class="card__sub">Key Tier 2 Suppliers &amp; Material Commitments</p>
+            </div>
+          </div>
+          <p id="supplier-commitments-status" class="table-status" hidden></p>
+          <div
+            class="table-wrap commitments-table-wrap"
+            role="region"
+            aria-label="Supplier commitments table, scroll to see rows beyond the first five"
+          >
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Supplier</th>
+                  <th>Location</th>
+                  <th>Part / Material</th>
+                  <th>Seat Type</th>
+                  <th>PO Qty</th>
+                  <th>Committed Date</th>
+                  <th>Shift</th>
+                  <th>Status</th>
+                  <th>OTIF</th>
+                </tr>
+              </thead>
+              <tbody id="supplier-commitments-tbody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card card--map" aria-labelledby="shipment-title">
+          <div class="card__head card__head--row card__head--map">
+            <div>
+              <h2 id="shipment-title">Shipment Tracking</h2>
+              <p class="card__sub">Real-Time Status &amp; Geographical View</p>
+            </div>
+            <div class="shipment-toolbar shipment-toolbar--search" role="search">
+              <label class="visually-hidden" for="shipment-supplier-search">Search supplier by name</label>
+              <div class="shipment-search-row">
+                <input
+                  type="search"
+                  id="shipment-supplier-search"
+                  class="shipment-search-input"
+                  placeholder="Search supplier…"
+                  autocomplete="off"
+                  enterkeyhint="search"
+                />
+                <button type="button" class="shipment-search-btn" id="shipment-search-btn" aria-label="Search suppliers on map">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                </button>
+              </div>
+              <p id="shipment-search-status" class="shipment-search-status" hidden></p>
+            </div>
+          </div>
+          <div class="map-panel" id="shipment-map-panel">
+            <div id="shipment-leaflet-map" class="map-panel__leaflet" hidden aria-hidden="true"></div>
+            <div class="map-panel__fallback">
+            <svg class="map-svg" viewBox="0 0 960 480" preserveAspectRatio="xMidYMid meet" aria-labelledby="map-title map-desc">
+              <title id="map-title">Shipment route Philippines to Germany</title>
+              <desc id="map-desc">
+                Leather upholstery moves from the Philippines export hub to the Hannover seat plant in Germany, with
+                active risk in Eastern Europe.
+              </desc>
+              <defs>
+                <linearGradient id="ocean" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#0c1830" />
+                  <stop offset="100%" stop-color="#070f1f" />
+                </linearGradient>
+                <linearGradient id="landGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#1e4974" />
+                  <stop offset="100%" stop-color="#142d4a" />
+                </linearGradient>
+                <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+                  <feGaussianBlur stdDeviation="2.5" result="b" />
+                  <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+                <filter id="landShadow" x="-5%" y="-5%" width="110%" height="110%">
+                  <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000" flood-opacity="0.35" />
+                </filter>
+              </defs>
+              <rect width="960" height="480" fill="url(#ocean)" />
+              <!-- Graticule (equirectangular) -->
+              <g class="map-graticule" opacity="0.12" stroke="#7dd3fc" stroke-width="0.6" fill="none">
+                <path d="M160 0 V480 M320 0 V480 M480 0 V480 M640 0 V480 M800 0 V480" />
+                <path d="M0 80 H960 M0 160 H960 M0 240 H960 M0 320 H960 M0 400 H960" />
+              </g>
+              <!-- Stylized continents (Plate Carrée–style layout) -->
+              <g class="map-land" fill="url(#landGrad)" filter="url(#landShadow)" opacity="0.92">
+                <path
+                  id="land-na"
+                  d="M 42 52 L 118 38 L 205 58 L 248 95 L 232 142 L 188 178 L 128 168 L 72 125 Z M 195 188 L 242 182 L 258 248 L 228 318 L 198 308 L 185 248 Z"
+                />
+                <path
+                  id="land-sa"
+                  d="M 218 232 L 268 222 L 258 398 L 222 412 L 198 348 Z"
+                />
+                <path
+                  id="land-eu"
+                  d="M 398 78 L 468 68 L 492 108 L 472 138 L 432 148 L 392 118 Z"
+                />
+                <path
+                  id="land-af"
+                  d="M 458 152 L 538 142 L 568 248 L 532 392 L 482 388 L 448 268 Z"
+                />
+                <path
+                  id="land-as"
+                  d="M 448 72 L 618 58 L 798 92 L 898 168 L 882 248 L 828 278 L 698 268 L 538 218 L 458 138 Z M 698 198 L 758 188 L 792 232 L 768 268 L 712 252 Z"
+                />
+                <path
+                  id="land-sea"
+                  d="M 718 205 L 798 195 L 838 248 L 798 282 L 738 268 Z"
+                />
+                <path
+                  id="land-au"
+                  d="M 798 298 L 918 288 L 932 358 L 858 378 L 802 342 Z"
+                />
+                <path id="land-gl" d="M 308 32 L 372 28 L 378 92 L 322 102 Z" opacity="0.85" />
+              </g>
+              <!-- Country emphasis: Germany + Philippines -->
+              <circle class="map-hotspot map-hotspot--de" cx="507" cy="104" r="22" />
+              <g class="map-ph-cluster" fill="#2563eb" opacity="0.55">
+                <circle cx="798" cy="212" r="4" />
+                <circle cx="808" cy="206" r="3.5" />
+                <circle cx="812" cy="216" r="3" />
+                <circle cx="802" cy="220" r="2.5" />
+              </g>
+              <circle class="map-hotspot map-hotspot--ph" cx="805" cy="208" r="26" />
+              <ellipse class="conflict-zone" cx="568" cy="118" rx="88" ry="52" />
+              <text class="map-label conflict-label" x="568" y="122" text-anchor="middle">Conflict Zone: Eastern Europe</text>
+              <path
+                class="route-line"
+                d="M 805 208 C 680 120 580 95 507 104"
+                fill="none"
+                stroke="rgba(125,211,252,0.9)"
+                stroke-width="2.2"
+                stroke-dasharray="9 7"
+              />
+              <g class="map-ship" transform="translate(632,168)">
+                <path d="M-14 5 L14 5 L9 -7 L-9 -7 Z" fill="#94a3b8" />
+              </g>
+              <!-- Leader lines: callout anchor → pin -->
+              <line class="map-leader" x1="764" y1="296" x2="805" y2="208" />
+              <line class="map-leader" x1="434" y1="174" x2="507" y2="104" />
+              <!-- Pins -->
+              <g class="map-pin map-pin--ph" transform="translate(805,208)">
+                <circle class="map-pin__pulse" r="18" fill="none" stroke="#3b82f6" stroke-width="1.2" opacity="0.5" />
+                <circle r="9" fill="#3b82f6" filter="url(#glow)" />
+                <circle r="3.5" fill="#fff" />
+              </g>
+              <g class="map-pin map-pin--de" transform="translate(507,104)">
+                <circle class="map-pin__pulse" r="18" fill="none" stroke="#22c55e" stroke-width="1.2" opacity="0.45" />
+                <circle r="9" fill="#22c55e" filter="url(#glow)" />
+                <circle r="3.5" fill="#fff" />
+              </g>
+              <text class="map-country-tag" x="805" y="238" text-anchor="middle">Philippines</text>
+              <text class="map-country-tag" x="507" y="128" text-anchor="middle">Germany</text>
+              <!-- Germany detail card (destination) -->
+              <foreignObject x="288" y="6" width="292" height="168">
+                <div xmlns="http://www.w3.org/1999/xhtml" class="map-fo-card map-fo-card--de">
+                  <div class="map-fo-card__kicker">Germany · Destination</div>
+                  <div class="map-fo-card__title">Hannover Seat Assembly Plant</div>
+                  <dl class="map-fo-card__dl">
+                    <div><dt>Role</dt><dd>Tier 1 manufacturing &amp; inbound dock</dd></div>
+                    <div><dt>Shipment</dt><dd>Leather Upholstery · P-112</dd></div>
+                    <div><dt>PO / Vessel</dt><dd>#45821 · MV Nordic Link</dd></div>
+                    <div><dt>Expected receipt</dt><dd>Apr 16, 2026 · Hamburg</dd></div>
+                    <div><dt>Line impact</dt><dd>Black Seat Assembly</dd></div>
+                  </dl>
+                  <div class="map-fo-card__status map-fo-card__status--amber">Awaiting Asia-EU lane · port congestion risk</div>
+                </div>
+              </foreignObject>
+              <!-- Philippines detail card (origin) -->
+              <foreignObject x="618" y="108" width="292" height="188">
+                <div xmlns="http://www.w3.org/1999/xhtml" class="map-fo-card map-fo-card--ph">
+                  <div class="map-fo-card__kicker">Philippines · Origin</div>
+                  <div class="map-fo-card__title">Leather Upholstery Shipment</div>
+                  <dl class="map-fo-card__dl">
+                    <div><dt>Supplier</dt><dd>Beta Textiles Ltd · Asia export hub</dd></div>
+                    <div><dt>Part / PO</dt><dd>P-112 · PO #45821</dd></div>
+                    <div><dt>Export lane</dt><dd>Manila → transshipment · Asia-Europe</dd></div>
+                    <div><dt>Qty / Container</dt><dd>2,800 units · 40′ HC (sealed)</dd></div>
+                  </dl>
+                  <div class="map-fo-card__status map-fo-card__status--warn">In Transit – Port Delayed</div>
+                </div>
+              </foreignObject>
+            </svg>
+            </div>
+            <p id="shipment-maps-hint" class="map-maps-hint" hidden>
+              Interactive map could not load. Use <code>http://localhost</code> (not file://) and check your network.
+            </p>
+          </div>
+        </section>
+
+        <section class="card card--events" aria-labelledby="outlook-title">
+          <div class="card__head card__head--row">
+            <div>
+              <h2 id="outlook-title" class="inline-title">
+                Global Supply Outlook
+                <button type="button" class="info-dot" aria-label="More info">i</button>
+              </h2>
+              <p class="card__sub">
+                Active Events <span id="global-supply-active-count" class="count">(0)</span>
+              </p>
+            </div>
+            <div class="panel-actions">
+              <label class="visually-hidden" for="outlook-notes-input">Global outlook note</label>
+              <input
+                type="text"
+                id="outlook-notes-input"
+                name="outlook_event_note"
+                class="outlook-notes-input"
+                placeholder="Describe an Event"
+                aria-label="Global supply outlook note"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                spellcheck="false"
+              />
+              <button type="button" class="btn-refresh btn-action-analyze" id="btn-analyze-outlook" aria-label="Analyze global supply outlook impact alerts">
+                Analyze
+              </button>
+            </div>
+          </div>
+          <p id="global-supply-status" class="table-status" hidden></p>
+          <div class="events-table-wrap outlook-table-scroll" role="region" aria-label="Global supply outlook table, scroll to see rows beyond the first three">
+            <table class="events-table">
+              <thead id="global-supply-outlook-thead">
+                <tr>
+                  <th class="events-th-placeholder">No events loaded yet. Click Refresh.</th>
+                </tr>
+              </thead>
+              <tbody id="global-supply-outlook-tbody"></tbody>
+            </table>
+          </div>
+          <p class="card-footnote">
+            <span class="info-icon" aria-hidden="true">i</span>
+            All other suppliers on track
+          </p>
+        </section>
+
+      </main>
+        </div>
+        <div class="app-tab-panel" id="panel-production" role="tabpanel" aria-labelledby="tab-production" hidden>
+          <div class="production-tab-toolbar">
+            <div class="production-kpi-cards" aria-label="Production status indicators">
+              <article class="production-kpi-card production-kpi-card--date" aria-live="polite">
+                <span class="production-kpi-card__icon" aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <path d="M12 7v5l3 2"></path>
+                  </svg>
+                </span>
+                <span class="production-kpi-card__label">Current Date</span>
+                <strong class="production-kpi-card__value" id="production-kpi-date">--</strong>
+              </article>
+              <article class="production-kpi-card production-kpi-card--cycle" aria-live="polite">
+                <span class="production-kpi-card__icon" aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 6h16M4 12h16M4 18h16"></path>
+                    <circle cx="8" cy="6" r="1.3"></circle>
+                    <circle cx="12" cy="12" r="1.3"></circle>
+                    <circle cx="16" cy="18" r="1.3"></circle>
+                  </svg>
+                </span>
+                <span class="production-kpi-card__label">Current Cycle</span>
+                <strong class="production-kpi-card__value" id="production-kpi-cycle">--</strong>
+              </article>
+              <article class="production-kpi-card production-kpi-card--risk">
+                <span class="production-kpi-card__icon" aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path>
+                    <path d="M12 9v4"></path>
+                    <path d="M12 17h.01"></path>
+                  </svg>
+                </span>
+                <span class="production-kpi-card__label">Risk Count</span>
+                <strong class="production-kpi-card__value" id="production-kpi-risk">0</strong>
+              </article>
+            </div>
+            <div class="production-tab-toolbar__controls">
+              <button
+                type="button"
+                class="btn-refresh production-tab-toolbar__live-run"
+                id="btn-live-production-run"
+                aria-pressed="false"
+                aria-label="Toggle live production run (auto-advance sequence until stopped)"
+              >
+                Live Production Run
+              </button>
+              <button
+                type="button"
+                class="btn-refresh production-tab-toolbar__next-cycle"
+                id="btn-next-cycle-sequence"
+                aria-label="Advance to next production cycle (Production Planning)"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M23 4v6h-6M1 20v-6h6" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+                Next Cycle
+              </button>
+            </div>
+          </div>
+          <section class="card card--mps" aria-labelledby="mps-title">
+            <div class="card__head card__head--row">
+              <h2 id="mps-title">
+                Supply View - Inventory Status
+                <span class="title-muted-inline">(Leather Upholstery)</span>
+              </h2>
+              <button
+                type="button"
+                class="btn-refresh supply-inv-multisourcing-btn"
+                id="btn-multisourcing-inventory"
+                aria-label="Reduce impacted supplier delays by one shift using multi-sourcing"
+              >
+                Multi-Sourcing
+              </button>
+              <button
+                type="button"
+                class="btn-refresh supply-inv-resequence-btn"
+                id="btn-resequence-inventory"
+                aria-label="Apply supply impacts and re-sequence production"
+              >
+                Re-Sequence Production
+              </button>
+            </div>
+            <p id="supply-inv-status" class="table-status" hidden></p>
+            <div class="supply-inv-wrap inventory-table-wrap" role="region" aria-label="Inventory supply status">
+              <table class="supply-inv-table inventory-viz-table">
+                <thead id="supply-inv-thead">
+                  <tr>
+                    <th class="inventory-th-placeholder">Open Production Planning to load inventory.</th>
+                  </tr>
+                </thead>
+                <tbody id="supply-inv-tbody"></tbody>
+              </table>
+            </div>
+            <div class="supply-inv-footer">
+              <p class="card-footnote supply-inv-disclaimer">
+                <span class="info-icon" aria-hidden="true">i</span>
+                Disclaimer: Inventory is replenished every shift
+              </p>
+            </div>
+          </section>
+          <section class="card card--sequence" aria-labelledby="sequence-title">
+            <div class="card__head card__head--row">
+              <h2 id="sequence-title">
+                OEM View - Production Sequence
+                <span class="title-muted-inline">(Leather Seat)</span>
+              </h2>
+              <button
+                type="button"
+                class="btn-refresh"
+                id="btn-export-sequence-json"
+                aria-label="Export current production sequence as JSON"
+                title="Export current production sequence as JSON"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M12 3v12" />
+                  <path d="M7 10l5 5 5-5" />
+                  <path d="M5 21h14" />
+                </svg>
+                <span class="visually-hidden">Export JSON</span>
+              </button>
+            </div>
+            <p id="sequence-status" class="table-status" hidden></p>
+            <div class="sequence-wrap" role="region" aria-label="Production sequence by day and shift">
+              <div id="sequence-grid">
+                <p class="events-th-placeholder">Open Production Planning to load sequence.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+    <script defer src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js" crossorigin=""></script>
+    <script defer src="app.js" type="module"></script>
+  </body>
+</html>
