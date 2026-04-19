@@ -1802,14 +1802,14 @@ body {
   margin: 0;
   padding-top: 0;
   border-top: 0;
+  color: #fde68a;
+}
+
+.supply-inv-disclaimer #supply-inv-disclaimer-text {
+  color: inherit;
 }
 
 .supply-inv-resequence-btn {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.supply-inv-multisourcing-btn {
   margin-left: auto;
   flex-shrink: 0;
   white-space: nowrap;
@@ -3113,6 +3113,10 @@ body {
 
 .supply-mx-th--impacted .supply-mx-th__txt {
   color: #fcd34d;
+}
+
+.supply-mx-th--replenished .supply-mx-th__txt {
+  color: #86efac;
 }
 
 .supply-mx-warn {

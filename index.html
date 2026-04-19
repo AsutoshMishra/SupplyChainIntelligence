@@ -439,14 +439,6 @@
               </h2>
               <button
                 type="button"
-                class="btn-refresh supply-inv-multisourcing-btn"
-                id="btn-multisourcing-inventory"
-                aria-label="Reduce impacted supplier delays by one shift using multi-sourcing"
-              >
-                Multi-Sourcing
-              </button>
-              <button
-                type="button"
                 class="btn-refresh supply-inv-resequence-btn"
                 id="btn-resequence-inventory"
                 aria-label="Apply supply impacts and re-sequence production"
@@ -466,9 +458,9 @@
               </table>
             </div>
             <div class="supply-inv-footer">
-              <p class="card-footnote supply-inv-disclaimer">
+              <p class="card-footnote supply-inv-disclaimer" id="supply-inv-disclaimer">
                 <span class="info-icon" aria-hidden="true">i</span>
-                Disclaimer: Inventory is replenished every shift
+                <span id="supply-inv-disclaimer-text" aria-live="polite">Disclaimer: Inventory is replenished every shift.</span>
               </p>
             </div>
           </section>
