@@ -49,6 +49,8 @@ let inventoryMatrixBaseline = [];
 let inventoryMatrixExtraRows = [];
 /** After "Re-sequence Production", inventory shows dice restored for delayed suppliers + "(Replenished)" labels. Reset on Analyze. */
 let inventoryReplenishedAfterPartnerResequence = false;
+/** After partner re-sequence, baseline is promoted so Analyze / tab reload keep the permuted plan instead of reverting to the CSV file. Cleared on outlook refresh / reset. */
+let sequenceBasePromotedFromPartnerResequence = false;
 /** When true, `runLiveProductionLoop` advances ticks until stopped; wraps with reset at sequence end. */
 let liveProductionRunActive = false;
 let alertsUnreadCount = 0;
@@ -1336,13 +1338,13 @@ function supplierSeatLetterByName(name) {
   return "";
 }
 
-function outlookSupplierDelayImpacts() {
-  if (!cachedOutlookHeaders.length || !cachedOutlookRows.length) return [];
+function outlookSupplierDelayImpactsFromRows(rows) {
+  if (!cachedOutlookHeaders.length || !rows || !rows.length) return [];
   const iSupplier = firstColIndexByAliases(cachedOutlookHeaders, ["Impacted Supplier", "Supplier"]);
   const iDelay = firstColIndexByAliases(cachedOutlookHeaders, ["Delay", "Potential Delay"]);
   if (iSupplier < 0 || iDelay < 0) return [];
   const bySupplier = new Map();
-  for (const row of cachedOutlookRows) {
+  for (const row of rows) {
     const delay = parseDelayShiftCount(row[iDelay]);
     if (delay <= 0) continue;
     const suppliers = splitSupplierNames(row[iSupplier]);
@@ -1357,6 +1359,17 @@ function outlookSupplierDelayImpacts() {
     });
   }
   return [...bySupplier.values()];
+}
+
+function outlookSupplierDelayImpacts() {
+  return outlookSupplierDelayImpactsFromRows(cachedOutlookRows);
+}
+
+/** Supply View matrix only: empty inventory + header warning for the **latest** Analyze row when there are multiple events (prior events stay full in the matrix). */
+function outlookSupplierDelayImpactsForInventorySupplyView() {
+  if (!cachedOutlookRows.length) return [];
+  if (cachedOutlookRows.length === 1) return outlookSupplierDelayImpactsFromRows(cachedOutlookRows);
+  return outlookSupplierDelayImpactsFromRows([cachedOutlookRows[cachedOutlookRows.length - 1]]);
 }
 
 function supplierDelayShiftByName(name) {
@@ -1429,7 +1442,7 @@ function blockedInventoryColumnsByShift(totalShifts) {
     return Array.from({ length: Math.max(0, totalShifts) }, () => new Set());
   }
   const out = Array.from({ length: Math.max(0, totalShifts) }, () => new Set());
-  const impacts = outlookSupplierDelayImpacts();
+  const impacts = outlookSupplierDelayImpactsForInventorySupplyView();
   for (const imp of impacts) {
     const idx = supplierColumnIndexFromName(imp.supplier);
     if (idx < 0) continue;
@@ -1452,9 +1465,8 @@ function currentSequenceShiftIndex() {
 }
 
 function impactedSupplierColumnSet(currentShiftIdx = 0) {
-  if (inventoryReplenishedAfterPartnerResequence) return new Set();
   const out = new Set();
-  const impacts = outlookSupplierDelayImpacts();
+  const impacts = outlookSupplierDelayImpactsForInventorySupplyView();
   for (const imp of impacts) {
     if ((Number(imp.delayShifts) || 0) <= 0) continue;
     if (Number(imp.delayShifts) <= currentShiftIdx) continue;
@@ -1465,7 +1477,6 @@ function impactedSupplierColumnSet(currentShiftIdx = 0) {
 }
 
 function activeDelayedSupplierCount(currentShiftIdx = 0) {
-  if (inventoryReplenishedAfterPartnerResequence) return 0;
   const impacts = outlookSupplierDelayImpacts();
   const active = new Set();
   for (const imp of impacts) {
@@ -1477,9 +1488,9 @@ function activeDelayedSupplierCount(currentShiftIdx = 0) {
   return active.size;
 }
 
-function applyOutlookImpactsToSequence(baseSchedule) {
+function applyOutlookImpactsToSequence(baseSchedule, impactsOverride) {
   const schedule = (baseSchedule || []).map((r) => ({ ...r, slots: [...(r.slots || [])] }));
-  const impacts = outlookSupplierDelayImpacts();
+  const impacts = impactsOverride ?? outlookSupplierDelayImpacts();
   if (!impacts.length) return schedule;
 
   // Supplier column A1…A9 maps to OEM slots by shared dice color (e.g. A1→slot1, A2→slot4, A3→slot7 for blues).
@@ -1553,38 +1564,12 @@ function isSupplierColumnDelayedForRow(rowIdx, ci) {
   return rowIdx < delayShiftsForSupplierColumn(ci);
 }
 
-/** Same leather-color supplier columns as `ci` (nearest index first), excluding `ci`. */
-function partnerSupplierColumnIndicesSameColor(ci) {
-  const invSeq = sequenceLetterFromInventoryBaselineCell(inventoryMatrixBaseline[ci]);
-  if (!isSequenceProductLetter(invSeq)) return [];
-  const idxs = [];
-  for (let j = 0; j < Math.min(9, inventoryMatrixBaseline.length); j++) {
-    if (j === ci) continue;
-    if (sequenceLetterFromInventoryBaselineCell(inventoryMatrixBaseline[j]) === invSeq) idxs.push(j);
-  }
-  idxs.sort((a, b) => Math.abs(a - ci) - Math.abs(b - ci));
-  return idxs;
-}
-
-function firstSuggestedPartnerHeaderLabel(impactedCi) {
-  if (impactedCi < 0 || !inventoryMatrixHeaders.length) return "";
-  for (const p of partnerSupplierColumnIndicesSameColor(impactedCi)) {
-    if (delayShiftsForSupplierColumn(p) > 0) continue;
-    const h = String(inventoryMatrixHeaders[p] ?? "").trim();
-    if (h) return h;
-  }
-  return "";
-}
-
 function buildSupplyInvDisclaimerPromptText() {
   const iSupplier = firstColIndexByAliases(cachedOutlookHeaders, ["Impacted Supplier", "Supplier"]);
   if (iSupplier < 0 || !cachedOutlookRows.length) return "";
   const lastRow = cachedOutlookRows[cachedOutlookRows.length - 1];
   const primary = splitSupplierNames(String(lastRow[iSupplier] ?? ""))[0] || "Supplier";
-  const ci = supplierColumnIndexFromName(primary);
-  const partnerLabel = ci >= 0 ? firstSuggestedPartnerHeaderLabel(ci) : "";
-  const replen = partnerLabel || "a nearby facility";
-  return `${primary} has been impacted. System suggests replenishment from ${replen} and resequence the production to accommodate new lead times.`;
+  return `${primary} has been impacted. System suggests resequencing production to ensure maximum resource utilization and customer delivery commitments.`;
 }
 
 function renderSupplyInvDisclaimer() {
@@ -1946,6 +1931,7 @@ async function loadGlobalSupplyOutlook() {
   await waitMs(1000);
   hasAnalyzedOutlook = false;
   inventoryReplenishedAfterPartnerResequence = false;
+  sequenceBasePromotedFromPartnerResequence = false;
   alertsFeed = [];
   alertsPanelOpen = false;
   persistAppUiState();
@@ -2923,22 +2909,15 @@ function buildSupplyMatrixTbodyHtml(headers, primarySlotLetters, extraStaticRows
   return rows.join("");
 }
 
-function supplyMatrixThDisplayLabel(rawHeader, colIndex) {
-  const base = String(rawHeader ?? "").trim();
-  if (!inventoryReplenishedAfterPartnerResequence) return base;
-  if (delayShiftsForSupplierColumn(colIndex) <= 0) return base;
-  return `${base} (Replenished)`;
-}
-
 function buildSupplyMatrixTheadHtml(headers, hasRowLabels) {
   const impactedCols = impactedSupplierColumnSet(currentSequenceShiftIndex());
   const thCells = headers
     .map((h, i) => {
       const impacted = impactedCols.has(i);
-      const label = supplyMatrixThDisplayLabel(h, i);
+      const label = String(h ?? "").trim();
       return `<th scope="col" class="supply-mx-th${
         impacted ? " supply-mx-th--impacted" : ""
-      }${inventoryReplenishedAfterPartnerResequence && delayShiftsForSupplierColumn(i) > 0 ? " supply-mx-th--replenished" : ""}"><span class="supply-mx-th__txt">${escapeHtml(label)}</span>${
+      }"><span class="supply-mx-th__txt">${escapeHtml(label)}</span>${
         impacted
           ? '<span class="supply-mx-warn" title="Impacted supplier delay" aria-label="Impacted supplier delay">⚠</span>'
           : ""
@@ -3092,6 +3071,14 @@ function normalizeSequenceSchedule(headers, body) {
   return out;
 }
 
+function cloneSequenceSchedule(schedule) {
+  return (schedule || []).map((r) => ({
+    date: r.date,
+    shift: r.shift,
+    slots: [...(r.slots || [])],
+  }));
+}
+
 function buildSequenceDiffMapFromSchedules(beforeSched, afterSched) {
   const beforeMap = new Map();
   for (const r of beforeSched) {
@@ -3214,6 +3201,21 @@ async function loadSequenceInsights() {
     const schedule = normalizeSequenceSchedule(headers, body);
     currentSequenceHeaders = headers;
     currentSequenceBody = body;
+
+    if (sequenceBasePromotedFromPartnerResequence && currentSequenceBaseSchedule.length) {
+      sequenceCellTotal = countSequenceProductionSlots(currentSequenceSchedule);
+      sequenceCycleTicks = 0;
+      let seqDiffMap = new Map();
+      if (mpsPhase === "after") {
+        seqDiffMap = await currentSequenceDiffMap();
+      }
+      renderSequenceTable(currentSequenceSchedule, seqDiffMap);
+      refreshInventorySupplyViewForSequence();
+      updateProductionToolbarMetrics();
+      setStatus("", false);
+      return;
+    }
+
     currentSequenceBaseSchedule = schedule;
     currentSequenceSchedule = schedule.map((r) => ({ ...r, slots: [...(r.slots || [])] }));
     sequenceCellTotal = countSequenceProductionSlots(currentSequenceSchedule);
@@ -3244,15 +3246,29 @@ async function loadSequenceInsights() {
 }
 
 /**
- * Rebuilds `currentSequenceSchedule` from baseline CSV + active Global Supply Outlook delays.
- * Call after loading sequence/MPS or when outlook rows change so Production Planning stays in sync.
+ * Rebuilds `currentSequenceSchedule` from baseline + Global Supply Outlook delays.
+ * @param {{ incrementalLastRow?: boolean }} [options]
+ * - When `incrementalLastRow` is true (Analyze): first event applies to the file/partner baseline; later events only apply the **latest** row’s suppliers on top of the current schedule so prior slots stay unchanged.
+ * - Full rebuild (default) reapplies all outlook rows to `currentSequenceBaseSchedule`, except when the baseline was promoted after partner re-sequence and there are multiple events (then the in-memory schedule is kept — incremental Analyze is the source of truth).
  */
-async function syncSequenceScheduleWithOutlookImpacts() {
+async function syncSequenceScheduleWithOutlookImpacts(options = {}) {
   if (!currentSequenceBaseSchedule.length) return;
   if (!inventoryMatrixHeaders.length) {
     await loadMpsInsights();
   }
-  currentSequenceSchedule = applyOutlookImpactsToSequence(currentSequenceBaseSchedule);
+  const incremental = options.incrementalLastRow === true;
+  if (incremental && cachedOutlookRows.length > 1) {
+    const lastRow = cachedOutlookRows[cachedOutlookRows.length - 1];
+    const impacts = outlookSupplierDelayImpactsFromRows([lastRow]);
+    currentSequenceSchedule = applyOutlookImpactsToSequence(currentSequenceSchedule, impacts);
+  } else if (incremental && cachedOutlookRows.length === 1) {
+    const impacts = outlookSupplierDelayImpactsFromRows(cachedOutlookRows);
+    currentSequenceSchedule = applyOutlookImpactsToSequence(currentSequenceBaseSchedule, impacts);
+  } else if (sequenceBasePromotedFromPartnerResequence && cachedOutlookRows.length > 1) {
+    /* keep currentSequenceSchedule — full re-apply to promoted base would undo per-event incremental updates */
+  } else {
+    currentSequenceSchedule = applyOutlookImpactsToSequence(currentSequenceBaseSchedule);
+  }
   sequenceCellTotal = countSequenceProductionSlots(currentSequenceSchedule);
   sequenceCycleTicks = 0;
   const seqDiffMap = await currentSequenceDiffMap();
@@ -3274,7 +3290,7 @@ async function applyResequenceFromInventoryButton(options = {}) {
   if (!inventoryMatrixHeaders.length) {
     await loadMpsInsights();
   }
-  await syncSequenceScheduleWithOutlookImpacts();
+  await syncSequenceScheduleWithOutlookImpacts({ incrementalLastRow: true });
   if (!skipAlert) {
     pushAlertFeedItem({
       title: "Production resequence activated",
@@ -3296,6 +3312,8 @@ async function applyPartnerResequenceFromButton() {
   }
   inventoryReplenishedAfterPartnerResequence = true;
   currentSequenceSchedule = applyPartnerResequenceToSequence(currentSequenceBaseSchedule);
+  currentSequenceBaseSchedule = cloneSequenceSchedule(currentSequenceSchedule);
+  sequenceBasePromotedFromPartnerResequence = true;
   sequenceCellTotal = countSequenceProductionSlots(currentSequenceSchedule);
   sequenceCycleTicks = 0;
   const seqDiffMap = await currentSequenceDiffMap();
@@ -3819,6 +3837,7 @@ function initGlobalOutlookEmptyState() {
   alertsFeed = [];
   alertsPanelOpen = false;
   inventoryReplenishedAfterPartnerResequence = false;
+  sequenceBasePromotedFromPartnerResequence = false;
   renderAlertsPopover();
   setAlertsPanelOpen(false);
   renderOutlookAlertsIdle("No impact analysis yet. Click Analyze in Global Supply Outlook.");

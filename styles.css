@@ -3115,10 +3115,6 @@ body {
   color: #fcd34d;
 }
 
-.supply-mx-th--replenished .supply-mx-th__txt {
-  color: #86efac;
-}
-
 .supply-mx-warn {
   display: inline-block;
   margin-left: 0.22rem;
